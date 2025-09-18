@@ -1,13 +1,22 @@
 import re
+import json
 class Client:
-    def __init__(self):
+    def __init__(self, client_id=None, last_name=None, first_name=None, otch=None, address=None, phone=None, data=None):
         self.__client_id = None
         self.__last_name = None
         self.__first_name = None
         self.__otch = None
         self.__address = None
         self.__phone = None
-
+        if data is not None:
+            self.from_str(data)
+        elif client_id is not None and last_name is not None and first_name is not None and otch is not None and address is not None and phone is not None:
+            self.set_client_id(client_id)
+            self.set_last_name(last_name)
+            self.set_first_name(first_name)
+            self.set_otch(otch)
+            self.set_address(address)
+            self.set_phone(phone)
     @staticmethod
     def is_valid_id(id):
         return id is not None and id > 0
@@ -84,6 +93,27 @@ class Client:
             raise ValueError("Номер телефона должен начинаться с '+' и содержать 11 цифр, а также не быть пустым")
         self.__phone = phone
 
+
+
+    def from_str(self, data):
+        data = data.strip()
+        if data.startswith("{"):
+            data_dict = json.loads(data)
+            self.set_client_id(data_dict["clientId"])
+            self.set_last_name(data_dict["lastName"])
+            self.set_first_name(data_dict["firstName"])
+            self.set_otch(data_dict["otch"])
+            self.set_address(data_dict["address"])
+            self.set_phone(data_dict["phone"])
+        else:
+            parts = data.split(",")
+            self.set_client_id(int(parts[0]))
+            self.set_last_name(parts[1])
+            self.set_first_name(parts[2])
+            self.set_otch(parts[3])
+            self.set_address(parts[4])
+            self.set_phone(parts[5])
+
 client = Client()
 client.set_client_id(1230)
 client.set_last_name("Шигалугова")
@@ -97,3 +127,41 @@ print("Имя:", client.first_name)
 print("Отчество:", client.otch)
 print("Адрес:", client.address)
 print("Телефон:", client.phone)
+
+
+print("\nКонструктор с параметрами: ")
+client1 = Client(client_id=12, last_name="Иванов", first_name="Иван", otch="Иванович", address="г.Краснодар, ул. Садовая 2", phone="+74185693025")
+print("ID клиента:", client1.client_id)
+print("Фамилия:", client1.last_name)
+print("Имя:", client1.first_name)
+print("Отчество:", client1.otch)
+print("Адрес:", client1.address)
+print("Телефон:", client1.phone)
+
+print("\nКонструктор из строки: ")
+client2 = Client(data="13,Сидорова,Анна,Владимировна,Пятигорск,+71524698208")
+print("ID клиента:", client2.client_id)
+print("Фамилия:", client2.last_name)
+print("Имя:", client2.first_name)
+print("Отчество:", client2.otch)
+print("Адрес:", client2.address)
+print("Телефон:", client2.phone)
+
+
+
+print("\nКонструктор из json: ")
+str = (
+    '{"clientId": 74, '
+    '"lastName": "Кошкин", '
+    '"firstName": "Кошка", '
+    '"otch": "Кошкович", '
+    '"address": "г.Ставрополь", '
+    '"phone": "+72036987456"}'
+)
+client3 = Client(data=str)
+print("ID клиента:", client3.client_id)
+print("Фамилия:", client3.last_name)
+print("Имя:", client3.first_name)
+print("Отчество:", client3.otch)
+print("Адрес:", client3.address)
+print("Телефон:", client3.phone)
