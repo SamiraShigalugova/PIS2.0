@@ -114,38 +114,34 @@ class Client:
             self.set_address(parts[4])
             self.set_phone(parts[5])
 
-client = Client()
-client.set_client_id(1230)
-client.set_last_name("Шигалугова")
-client.set_first_name("Самира")
-client.set_otch("Беслановна")
-client.set_address("Нальчик")
-client.set_phone("+78965478850")
-print("ID клиента:", client.client_id)
-print("Фамилия:", client.last_name)
-print("Имя:", client.first_name)
-print("Отчество:", client.otch)
-print("Адрес:", client.address)
-print("Телефон:", client.phone)
+    def get_long_info(self):
+        return (f"(client_id={self.client_id}, Фамилия: '{self.last_name}', "
+                f"Имя: '{self.first_name}', Отчество: '{self.otch}', "
+                f"Адрес: '{self.address}', Телефон: '{self.phone}')")
+
+    def get_short_info(self):
+        return f"{self.last_name} {self.first_name} {self.otch if self.otch else ''}"
+
+    def __eq__(self, other):
+        if not isinstance(other, Client):
+            return False
+        return (self.client_id == other.client_id and
+                self.last_name == other.last_name and
+                self.first_name == other.first_name and
+                self.otch == other.otch and
+                self.address == other.address and
+                self.phone == other.phone)
+
+
 
 
 print("\nКонструктор с параметрами: ")
 client1 = Client(client_id=12, last_name="Иванов", first_name="Иван", otch="Иванович", address="г.Краснодар, ул. Садовая 2", phone="+74185693025")
-print("ID клиента:", client1.client_id)
-print("Фамилия:", client1.last_name)
-print("Имя:", client1.first_name)
-print("Отчество:", client1.otch)
-print("Адрес:", client1.address)
-print("Телефон:", client1.phone)
-
+print("Полная версия: ", client1.get_long_info())
+print("Краткая версия: ", client1.get_short_info())
 print("\nКонструктор из строки: ")
 client2 = Client(data="13,Сидорова,Анна,Владимировна,Пятигорск,+71524698208")
-print("ID клиента:", client2.client_id)
-print("Фамилия:", client2.last_name)
-print("Имя:", client2.first_name)
-print("Отчество:", client2.otch)
-print("Адрес:", client2.address)
-print("Телефон:", client2.phone)
+print(client2.get_long_info())
 
 
 
@@ -159,9 +155,10 @@ str = (
     '"phone": "+72036987456"}'
 )
 client3 = Client(data=str)
-print("ID клиента:", client3.client_id)
-print("Фамилия:", client3.last_name)
-print("Имя:", client3.first_name)
-print("Отчество:", client3.otch)
-print("Адрес:", client3.address)
-print("Телефон:", client3.phone)
+print(client3.get_long_info())
+
+
+print("\nРавны ли объекты?")
+print("client1 == client2:", client1 == client2)
+print("client1 == client3:", client1 == client3)
+print("client2 == client3:", client2 == client3)
