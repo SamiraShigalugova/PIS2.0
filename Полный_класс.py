@@ -1,5 +1,37 @@
 import re
 import json
+
+class ShortClient():
+    def __init__(self, client_id, last_name, first_name, otch = None, phone = None):
+        self.__client_id = client_id
+        self.__last_name = last_name
+        self.__first_name = first_name
+        self.__otch = otch
+        self.__phone = phone
+
+    @property
+    def client_id(self):
+        return self.__client_id
+
+    @property
+    def last_name(self):
+        return self.__last_name
+
+    @property
+    def first_name(self):
+        return self.__first_name
+
+    @property
+    def otch(self):
+        return self.__otch
+
+    @property
+    def phone(self):
+        return self.__phone
+
+    def get_info(self):
+        return f"{self.last_name} {self.__first_name} {self.__otch} {self.__phone}"
+
 class Client:
     def __init__(self, client_id=None, last_name=None, first_name=None, otch=None, address=None, phone=None, data=None):
         self.__client_id = None
@@ -119,8 +151,6 @@ class Client:
                 f"Имя: '{self.first_name}', Отчество: '{self.otch}', "
                 f"Адрес: '{self.address}', Телефон: '{self.phone}')")
 
-    def get_short_info(self):
-        return f"{self.last_name} {self.first_name} {self.otch if self.otch else ''}"
 
     def __eq__(self, other):
         if not isinstance(other, Client):
@@ -131,6 +161,18 @@ class Client:
                 self.otch == other.otch and
                 self.address == other.address and
                 self.phone == other.phone)
+    def short(self):
+        return ShortClient(
+            client_id=self.client_id,
+            last_name=self.last_name,
+            first_name=self.first_name,
+            otch=self.otch,
+            phone=self.phone
+        )
+
+
+
+
 
 
 
@@ -138,13 +180,12 @@ class Client:
 print("\nКонструктор с параметрами: ")
 client1 = Client(client_id=12, last_name="Иванов", first_name="Иван", otch="Иванович", address="г.Краснодар, ул. Садовая 2", phone="+74185693025")
 print("Полная версия: ", client1.get_long_info())
-print("Краткая версия: ", client1.get_short_info())
+client_short = client1.short()
+print("Краткая версия:")
+print(client_short.get_info())
 print("\nКонструктор из строки: ")
 client2 = Client(data="13,Сидорова,Анна,Владимировна,Пятигорск,+71524698208")
 print(client2.get_long_info())
-
-
-
 print("\nКонструктор из json: ")
 str = (
     '{"clientId": 74, '
@@ -156,9 +197,9 @@ str = (
 )
 client3 = Client(data=str)
 print(client3.get_long_info())
-
-
 print("\nРавны ли объекты?")
 print("client1 == client2:", client1 == client2)
 print("client1 == client3:", client1 == client3)
 print("client2 == client3:", client2 == client3)
+
+
