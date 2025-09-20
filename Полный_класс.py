@@ -95,12 +95,12 @@ class Client(ShortClient):
         data = data.strip()
         if data.startswith("{"):
             data_dict = json.loads(data)
-            self.set_client_id(data_dict["client_id"])
-            self.set_last_name(data_dict["last_name"])
-            self.set_first_name(data_dict["first_name"])
-            self.set_otch(data_dict["otch"])
-            self.set_address(data_dict["address"])
-            self.set_phone(data_dict["phone"])
+            self.set_client_id(data_dict.get("client_id"))
+            self.set_last_name(data_dict.get("last_name"))
+            self.set_first_name(data_dict.get("first_name"))
+            self.set_otch(data_dict.get("otch"))
+            self.set_address(data_dict.get("address"))
+            self.set_phone(data_dict.get("phone"))
         else:
             parts = data.split(",")
             self.set_client_id(int(parts[0]))
@@ -163,3 +163,4 @@ print(client3.get_long_info())
 print("\nРавны объекты?")
 print("client1 == client2:", client1 == client2)
 print("client2 == client3:", client2 == client3)
+
