@@ -63,6 +63,27 @@ class ClientRepJson:
         return short_clients
 
 
+    def sort_by_field(self, field="last_name", reverse=False):
+        clients = self.read_all()
+        valid_fields = ["last_name", "first_name", "client_id", "phone"]
+        if field not in valid_fields:
+            raise ValueError(f"Недопустимое поле для сортировки")
+        sort_list = []
+        for client in clients:
+            if field == "client_id":
+                key = client.client_id
+            elif field == "last_name":
+                key = client.last_name or ""
+            elif field == "first_name":
+                key = client.first_name or ""
+            elif field == "phone":
+                key = client.phone or ""
+            sort_list.append((key, client))
+
+        sort_list.sort(reverse=reverse)
+        return [client for key, client in sort_list]
+
+
 
 
 repo = ClientRepJson("clients.json")
@@ -96,6 +117,12 @@ print("Выборка клиентов:")
 first_page = repo.get_k_n_short_list(k=2, n=2)
 for short_client in first_page:
     print(short_client.get_info())
+
+print("\n" + "*"*50)
+print("Сортировка по фамилии:")
+sorted_clients = repo.sort_by_field("last_name")
+for client in sorted_clients:
+    print(f"{client.last_name} {client.first_name}")
 
 
 
