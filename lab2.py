@@ -51,31 +51,53 @@ class ClientRepJson:
 
 
 
+    def get_k_n_short_list(self, k, n):
+        clients = self.read_all()
+        start_index = (n - 1) * k
+        end_index = start_index + k
+        if start_index >= len(clients):
+            return []
+        short_clients = []
+        for client in clients[start_index:end_index]:
+            short_clients.append(client.short())
+        return short_clients
+
+
+
 
 repo = ClientRepJson("clients.json")
 clients = repo.read_all()
 
 new_client = Client(
     client_id=12,
-    last_name="Кушнов",
+    last_name="Кролик",
     first_name="Дмитрий",
     otch="Львович",
     address="Москва",
     phone="+79161234567"
 )
+print("\n" + "*"*50)
 clients.append(new_client)
 repo.write_all(clients)
 
 updated_clients = repo.read_all()
 for client in updated_clients:
     print(client.get_long_info())
-
-client = repo.get_by_id(12)
+print("\n" + "*"*50)
+client = repo.get_by_id(50)
 if client:
     print("Клиент с таким ID найден:")
     print(client.get_long_info())
 else:
     print("Клиент с таким ID не найден")
+
+print("\n" + "*"*50)
+print("Выборка клиентов:")
+first_page = repo.get_k_n_short_list(k=2, n=2)
+for short_client in first_page:
+    print(short_client.get_info())
+
+
 
 
 
