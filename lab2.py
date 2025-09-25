@@ -34,8 +34,6 @@ class ClientRepJson:
 
             with open(self.filename, 'w', encoding='utf-8') as file:
                 json.dump(data, file, ensure_ascii=False, indent=2)
-
-            print(f"Данные успешно записаны в файл {self.filename}")
             return True
 
         except Exception as e:
@@ -79,50 +77,92 @@ class ClientRepJson:
             elif field == "phone":
                 key = client.phone or ""
             sort_list.append((key, client))
-
-        sort_list.sort(reverse=reverse)
+        sort_list.sort(key=lambda x: x[0], reverse=reverse)
         return [client for key, client in sort_list]
+
+
+    def add_client(self, last_name, first_name, phone, address, otch=None):
+        try:
+            clients = self.read_all()
+            if clients:
+                max_id = 0
+                for client in clients:
+                    if client.client_id > max_id:
+                        max_id = client.client_id
+                new_id = max_id + 1
+            else:
+                new_id = 1
+
+            new_client = Client(
+                client_id=new_id,
+                last_name=last_name,
+                first_name=first_name,
+                otch=otch,
+                address=address,
+                phone=phone
+            )
+            clients.append(new_client)
+
+            if self.write_all(clients):
+                print(f"Клиент успешно добавлен с ID: {new_id}")
+                return new_client
+            else:
+                print("Ошибка при сохранении данных")
+                return None
+
+        except Exception as e:
+            print(f"Ошибка при добавлении клиента: {e}")
+            return None
 
 
 
 
 repo = ClientRepJson("clients.json")
+print("*"*50)
+print("\nЧтение из файла")
 clients = repo.read_all()
+if clients:
+    for client in clients:
+        print(f"   {client.get_long_info()}")
+else:
+    print("   Файл пуст или не найден")
+print("*"*50)
 
-new_client = Client(
-    client_id=12,
-    last_name="Кролик",
-    first_name="Дмитрий",
-    otch="Львович",
-    address="Москва",
-    phone="+79161234567"
+print("\nДобавление нового клиента")
+new_client = repo.add_client(
+    last_name="Павлов",
+    first_name="Иван",
+    otch="Петрович",
+    phone="+79165554433",
+    address="г. Псков, ул. Ленина 10"
 )
-print("\n" + "*"*50)
-clients.append(new_client)
-repo.write_all(clients)
-
-updated_clients = repo.read_all()
-for client in updated_clients:
-    print(client.get_long_info())
-print("\n" + "*"*50)
-client = repo.get_by_id(50)
+if new_client:
+    print(f"Успешно добавлен: {new_client.get_long_info()}")
+else:
+    print("Ошибка при добавлении клиента")
+print("*"*50)
+print("\nПоиск по id")
+client = repo.get_by_id(2)
 if client:
     print("Клиент с таким ID найден:")
     print(client.get_long_info())
 else:
     print("Клиент с таким ID не найден")
+print("*"*50)
 
-print("\n" + "*"*50)
-print("Выборка клиентов:")
-first_page = repo.get_k_n_short_list(k=2, n=2)
+print("\nВыборка клиентов:")
+first_page = repo.get_k_n_short_list(k=1, n=1)
 for short_client in first_page:
     print(short_client.get_info())
+print("*"*50)
 
-print("\n" + "*"*50)
-print("Сортировка по фамилии:")
+print("Сортировка по фамилии:\n")
 sorted_clients = repo.sort_by_field("last_name")
 for client in sorted_clients:
     print(f"{client.last_name} {client.first_name}")
+
+
+
 
 
 
