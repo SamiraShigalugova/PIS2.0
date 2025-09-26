@@ -154,6 +154,11 @@ class ClientRepJson:
         return None
 
 
+    def get_count(self):
+        clients = self.read_all()
+        return len(clients)
+
+
 
 repo = ClientRepJson("clients.json")
 print("*"*50)
@@ -212,6 +217,10 @@ deleted = repo.delete_client(client_id_to_delete)
 print("\nПосле обновления:")
 for client in repo.read_all():
     print(client.get_long_info())
+
+
+count = repo.get_count()
+print(f"Количество клиентов: {count}")
 
 
 
