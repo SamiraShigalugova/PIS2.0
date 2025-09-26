@@ -141,6 +141,18 @@ class ClientRepJson:
 
         return None
 
+    def delete_client(self, client_id):
+
+        clients = self.read_all()
+
+        for i, client in enumerate(clients):
+            if client.client_id == client_id:
+                deleted_client = clients.pop(i)
+                self.write_all(clients)
+                return deleted_client
+
+        return None
+
 
 
 repo = ClientRepJson("clients.json")
@@ -190,9 +202,12 @@ else:
 print("*"*50)
 print("\nОбновление клиента")
 repo.update_client(
-    client_id=3,
+    client_id=9,
     last_name="Новый"
 )
+
+client_id_to_delete = 4
+deleted = repo.delete_client(client_id_to_delete)
 
 print("\nПосле обновления:")
 for client in repo.read_all():
