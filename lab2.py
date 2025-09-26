@@ -115,18 +115,37 @@ class ClientRepJson:
             return None
 
 
+    def update_client(self, client_id, last_name=None, first_name=None, phone=None, address=None, otch=None):
+        clients = self.read_all()
+
+        for i, client in enumerate(clients):
+            if client.client_id == client_id:
+                new_last_name = last_name if last_name is not None else client.last_name
+                new_first_name = first_name if first_name is not None else client.first_name
+                new_phone = phone if phone is not None else client.phone
+                new_address = address if address is not None else client.address
+                new_otch = otch if otch is not None else client.otch
+
+                new_client = Client(
+                    client_id=client_id,
+                    last_name=new_last_name,
+                    first_name=new_first_name,
+                    phone=new_phone,
+                    address=new_address,
+                    otch=new_otch
+                )
+
+                clients[i] = new_client
+                self.write_all(clients)
+                return new_client
+
+        return None
+
 
 
 repo = ClientRepJson("clients.json")
 print("*"*50)
-print("\nЧтение из файла")
-clients = repo.read_all()
-if clients:
-    for client in clients:
-        print(f"   {client.get_long_info()}")
-else:
-    print("   Файл пуст или не найден")
-print("*"*50)
+
 
 print("\nДобавление нового клиента")
 new_client = repo.add_client(
@@ -160,6 +179,24 @@ print("Сортировка по фамилии:\n")
 sorted_clients = repo.sort_by_field("last_name")
 for client in sorted_clients:
     print(f"{client.last_name} {client.first_name}")
+
+print("\nЧтение из файла")
+clients = repo.read_all()
+if clients:
+    for client in clients:
+        print(f"   {client.get_long_info()}")
+else:
+    print("   Файл пуст или не найден")
+print("*"*50)
+print("\nОбновление клиента")
+repo.update_client(
+    client_id=3,
+    last_name="Новый"
+)
+
+print("\nПосле обновления:")
+for client in repo.read_all():
+    print(client.get_long_info())
 
 
 
