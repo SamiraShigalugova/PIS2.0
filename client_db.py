@@ -82,6 +82,22 @@ class ClientRepDB:
 
         return short_clients
 
+    def add_client(self, last_name, first_name, phone, address, otch=None):
+
+        query = """
+        INSERT INTO clients (last_name, first_name, otch, address, phone) 
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING client_id
+        """
+        params = (last_name, first_name, otch, address, phone)
+
+        result = self.execute_query(query, params, fetch=True)
+        if result and len(result) > 0:
+            new_id = result[0][0]
+            print(f"Клиент успешно добавлен с ID: {new_id}")
+            return self.get_by_id(new_id)
+        return None
+
 
 
 
@@ -100,3 +116,13 @@ print("\nВыборка клиентов:")
 short_clients = repo_db.get_k_n_short_list(k=3, n=1)
 for i, short_client in enumerate(short_clients, 1):
     print(f"{i}. {short_client.get_info()}")
+print("\nДобавление нового клиента:")
+new_client = repo_db.add_client(
+    last_name="Петрова",
+    first_name="Анна",
+    otch="Владимировна",
+    phone="+79167778899",
+    address="г. Псков, ул. Старая 10"
+)
+if new_client:
+    print(f"Успешно добавлен: {new_client.get_long_info()}")
