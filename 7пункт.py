@@ -550,29 +550,42 @@ class SortDecorator:
 
 
 
-base_repo = ClientRepDBAdapter()
+
 def filter_by_city(city):
     def filter_func(client):
         return city.lower() in client.address.lower()
     return filter_func
-print(f"Всего клиентов: {base_repo.get_count()}")
-print("Первые 3 клиента:")
-clients = base_repo.get_k_n_short_list(3, 1)
-for i, client in enumerate(clients, 1):
+
+db_repo = ClientRepDBAdapter()
+db_filtered = FilterDecorator(db_repo, filter_by_city("Москва"))
+print("\nBD:")
+print(f"Количество клиентов из Москвы в БД: {db_filtered.get_count()}")
+db_sorted = SortDecorator(db_repo, "last_name", reverse=True)
+print("Сортировка по фамилии из БД:")
+clients = db_sorted.get_k_n_short_list(3, 1)
+for client in clients:
     print(f"  {client.get_info()}")
-print("-" * 40)
-moscow_filter = filter_by_city("Москва")
-filtered_repo = FilterDecorator(base_repo, moscow_filter)
-print(f"Количество клиентов из Москвы: {filtered_repo.get_count()}")
-print("Клиенты из Москвы:")
-moscow_clients = filtered_repo.get_k_n_short_list(5, 1)
-for i, client in enumerate(moscow_clients, 1):
+
+
+print("\nJSON файл:")
+json_repo = ClientRepJson("clients.json")
+json_filtered = FilterDecorator(json_repo, filter_by_city("Москва"))
+print(f"Количество клиентов из Москвы в JSON: {json_filtered.get_count()}")
+json_sorted = SortDecorator(json_repo, "first_name")
+print("Сортировка по фамилии из JSON:")
+clients = json_sorted.get_k_n_short_list(3, 1)
+for client in clients:
     print(f"  {client.get_info()}")
-print("-" * 40)
-sorted_repo = SortDecorator(base_repo, "last_name", reverse=True)
-print("Сортировка по фамилии:")
-sorted_clients = sorted_repo.get_k_n_short_list(5, 1)
-for i, client in enumerate(sorted_clients, 1):
+
+
+print("\nYAML файл:")
+yaml_repo = ClientRepYaml("clients.yaml")
+yaml_filtered = FilterDecorator(yaml_repo, lambda client: client.phone and "9" in client.phone)
+print(f"Клиентов с цифрой '9' в телефоне в файле YAML: {yaml_filtered.get_count()}")
+yaml_sorted = SortDecorator(yaml_repo, "first_name")
+print("Сортировка по фамилии из YAML")
+clients = json_sorted.get_k_n_short_list(3, 1)
+for client in clients:
     print(f"  {client.get_info()}")
 
 
