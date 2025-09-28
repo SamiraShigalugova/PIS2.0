@@ -186,35 +186,53 @@ class ClientRepDB:
             return client_to_delete
         return None
 
+    def get_count(self):
+
+        query = "SELECT COUNT(*) FROM clients"
+        result = self.execute_query(query, fetch=True)
+        return result[0][0] if result else 0
+
+    def close(self):
+
+        if self.connection:
+            self.connection.close()
+            print("Соединение с базой данных закрыто")
 
 
-repo_db = ClientRepDB(
-    host="localhost",
-    user="postgres",
-    password="123",
-    database="clients_database",
-    port="5432"
-)
-print("\nПоиск клиента по ID:")
-client = repo_db.get_by_id(2)
-if client:
-    print(f"Найден клиент: {client.get_long_info()}")
-print("\nВыборка клиентов:")
-short_clients = repo_db.get_k_n_short_list(k=3, n=1)
-for i, short_client in enumerate(short_clients, 1):
-    print(f"{i}. {short_client.get_info()}")
-print("\nДобавление нового клиента:")
-new_client = repo_db.add_client(
-    last_name="Петрова",
-    first_name="Анна",
-    otch="Владимировна",
-    phone="+79167778899",
-    address="г. Псков, ул. Старая 10"
-)
-print("\nОбновление клиента:")
-updated_client = repo_db.update_client(
-    client_id=13,
-    phone="+77584669944"
-)
-print("\nУдаление клиента:")
-deleted_client = repo_db.delete_client(1)
+try:
+    repo_db = ClientRepDB(
+        host="localhost",
+        user="postgres",
+        password="123",
+        database="clients_database",
+        port="5432"
+    )
+    print("\nПоиск клиента по ID:")
+    client = repo_db.get_by_id(2)
+    if client:
+        print(f"Найден клиент: {client.get_long_info()}")
+    print("\nВыборка клиентов:")
+    short_clients = repo_db.get_k_n_short_list(k=3, n=1)
+    for i, short_client in enumerate(short_clients, 1):
+        print(f"{i}. {short_client.get_info()}")
+    print("\nДобавление нового клиента:")
+    new_client = repo_db.add_client(
+        last_name="Петрова",
+        first_name="Анна",
+        otch="Владимировна",
+        phone="+79167778899",
+        address="г. Псков, ул. Старая 10"
+    )
+    print("\nОбновление клиента:")
+    updated_client = repo_db.update_client(
+        client_id=13,
+        phone="+77584669944"
+    )
+    print("\nУдаление клиента:")
+    deleted_client = repo_db.delete_client(13)
+
+    count = repo_db.get_count()
+    print(f"Количество клиентов в базе: {count}")
+finally:
+    repo_db.close()
+
