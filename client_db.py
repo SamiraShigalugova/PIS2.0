@@ -83,21 +83,94 @@ class ClientRepDB:
         return short_clients
 
     def add_client(self, last_name, first_name, phone, address, otch=None):
+        try:
+            temp_client = Client()
+            temp_client.set_last_name(last_name)
+            temp_client.set_first_name(first_name)
+            temp_client.set_phone(phone)
+            temp_client.set_address(address)
+            if otch:
+                temp_client.set_otch(otch)
 
-        query = """
-        INSERT INTO clients (last_name, first_name, otch, address, phone) 
-        VALUES (%s, %s, %s, %s, %s)
-        RETURNING client_id
-        """
-        params = (last_name, first_name, otch, address, phone)
+            query = """
+            INSERT INTO clients (last_name, first_name, otch, address, phone) 
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING client_id
+            """
+            params = (last_name, first_name, otch, address, phone)
 
-        result = self.execute_query(query, params, fetch=True)
-        if result and len(result) > 0:
-            new_id = result[0][0]
-            print(f"Клиент успешно добавлен с ID: {new_id}")
-            return self.get_by_id(new_id)
-        return None
+            result = self.execute_query(query, params, fetch=True)
+            if result and len(result) > 0:
+                new_id = result[0][0]
+                print(f"Клиент успешно добавлен с ID: {new_id}")
+                return self.get_by_id(new_id)
+            return None
 
+        except ValueError as e:
+            print(f"Ошибка валидации данных: {e}")
+            return None
+        except Exception as e:
+            print(f"Ошибка при добавлении клиента: {e}")
+            return None
+
+
+    def update_client(self, client_id, last_name=None, first_name=None, phone=None, address=None, otch=None):
+        try:
+
+            current_client = self.get_by_id(client_id)
+            if not current_client:
+                print(f"Клиент с ID {client_id} не найден")
+                return None
+
+
+            temp_client = Client(
+                client_id=current_client.client_id,
+                last_name=current_client.last_name,
+                first_name=current_client.first_name,
+                otch=current_client.otch,
+                address=current_client.address,
+                phone=current_client.phone
+            )
+
+
+            if last_name is not None:
+                temp_client.set_last_name(last_name)
+            if first_name is not None:
+                temp_client.set_first_name(first_name)
+            if phone is not None:
+                temp_client.set_phone(phone)
+            if address is not None:
+                temp_client.set_address(address)
+            if otch is not None:
+                temp_client.set_otch(otch)
+
+
+            new_last_name = last_name if last_name is not None else current_client.last_name
+            new_first_name = first_name if first_name is not None else current_client.first_name
+            new_phone = phone if phone is not None else current_client.phone
+            new_address = address if address is not None else current_client.address
+            new_otch = otch if otch is not None else current_client.otch
+
+            query = """
+            UPDATE clients 
+            SET last_name = %s, first_name = %s, otch = %s, address = %s, phone = %s 
+            WHERE client_id = %s
+            """
+            params = (new_last_name, new_first_name, new_otch, new_address, new_phone, client_id)
+
+            rows_affected = self.execute_query(query, params)
+            if rows_affected:
+                print(f"Клиент с ID {client_id} успешно обновлен")
+                return self.get_by_id(client_id)
+            return None
+
+        except ValueError as e:
+
+            print(f"Ошибка валидации данных: {e}")
+            return None
+        except Exception as e:
+            print(f"Ошибка при обновлении клиента: {e}")
+            return None
 
 
 
@@ -126,3 +199,10 @@ new_client = repo_db.add_client(
 )
 if new_client:
     print(f"Успешно добавлен: {new_client.get_long_info()}")
+print("\nОбновление клиента:")
+updated_client = repo_db.update_client(
+    client_id=1,
+    last_name="Иванов8"
+)
+if updated_client:
+    print(f"Клиент обновлен: {updated_client.get_long_info()}")
