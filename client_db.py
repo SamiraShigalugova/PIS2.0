@@ -174,6 +174,20 @@ class ClientRepDB:
 
 
 
+    def delete_client(self, client_id):
+        client_to_delete = self.get_by_id(client_id)
+        if not client_to_delete:
+            print(f"Клиент с ID {client_id} не найден")
+            return None
+        query = "DELETE FROM clients WHERE client_id = %s"
+        rows_affected = self.execute_query(query, (client_id,))
+        if rows_affected:
+            print(f"Клиент с ID {client_id} успешно удален")
+            return client_to_delete
+        return None
+
+
+
 repo_db = ClientRepDB(
     host="localhost",
     user="postgres",
@@ -197,12 +211,10 @@ new_client = repo_db.add_client(
     phone="+79167778899",
     address="г. Псков, ул. Старая 10"
 )
-if new_client:
-    print(f"Успешно добавлен: {new_client.get_long_info()}")
 print("\nОбновление клиента:")
 updated_client = repo_db.update_client(
-    client_id=1,
-    last_name="Иванов8"
+    client_id=13,
+    phone="+77584669944"
 )
-if updated_client:
-    print(f"Клиент обновлен: {updated_client.get_long_info()}")
+print("\nУдаление клиента:")
+deleted_client = repo_db.delete_client(1)
