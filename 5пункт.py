@@ -1,5 +1,106 @@
 import psycopg2
-from Clients import Client
+from clients import Client
+
+
+class Deleg:
+    def __init__(self, db_connector):
+        self.connector = db_connector
+    def execute_select(self, table, columns, conditions):
+        query = f"SELECT {', '.join(columns)} FROM {table}"
+        if conditions:
+            where_clause = ' AND '.join([f'{col}=%s' for col in conditions.keys()])
+            query += f" WHERE {where_clause}"
+        return self.connector.execute_query(query, tuple(conditions.values()), fetch=True)
+
+    def execute_insert(self, table, values):
+        cols = ', '.join(values.keys())
+        placeholders = ', '.join(['%s'] * len(values))
+        query = f"INSERT INTO {table} ({cols}) VALUES ({placeholders})"
+        return self.connector.execute_query(query, list(values.values()))
+
+    def execute_update(self, table, updates, condition):
+
+        set_clause = ', '.join([f'{col}=%s' for col in updates.keys()])
+        where_clause = f'{condition["column"]}=%s'
+        query = f"UPDATE {table} SET {set_clause} WHERE {where_clause}"
+        return self.connector.execute_query(query, list(updates.values()) + [condition['value']])
+
+    def execute_delete(self, table, condition):
+        where_clause = f'{condition["column"]}=%s'
+        query = f"DELETE FROM {table} WHERE {where_clause}"
+        return self.connector.execute_query(query, (condition['value'], ))
+
+    def execute_count(self, table):
+        query = f"SELECT COUNT(*) FROM {table}"
+        result = self.connector.execute_query(query, fetch=True)
+        return result[0][0] if result else 0
+
+    def select_with_limit_and_offset(self, table, columns, limit, offset):
+        query = f"SELECT {', '.join(columns)} FROM {table} ORDER BY client_id LIMIT %s OFFSET %s"
+        return self.connector.execute_query(query, (limit, offset), fetch=True)
+
+
+
+class ClientRepDB:
+    def __init__(self):
+        self.db = DatabaseConnection()
+        self.deleg_manager = Deleg(self.db)
+
+    def get_by_id(self, client_id):
+        columns = ['client_id', 'last_name', 'first_name', 'otch', 'address', 'phone']
+        results = self.deleg_manager.execute_select('clients', columns, {'client_id': client_id})
+        if results and len(results) > 0:
+            row = results[0]
+            return Client(
+                client_id=row[0],
+                last_name=row[1],
+                first_name=row[2],
+                otch=row[3],
+                address=row[4],
+                phone=row[5]
+            )
+        return None
+
+    def add_client(self, last_name, first_name, phone, address, otch=None):
+        values = {
+            'last_name': last_name,
+            'first_name': first_name,
+            'otch': otch,
+            'address': address,
+            'phone': phone
+        }
+        self.deleg_manager.execute_insert('clients', values)
+        print("Новый клиент успешно добавлен.")
+
+    def update_client(self, client_id, updates):
+        self.deleg_manager.execute_update('clients', updates, {"column": "client_id", "value": client_id})
+        print(f"Клиент с ID {client_id} успешно обновлён.")
+
+    def delete_client(self, client_id):
+        self.deleg_manager.execute_delete('clients', {"column": "client_id", "value": client_id})
+        print(f"Клиент с ID {client_id} успешно удалён.")
+
+    def get_count(self):
+        return self.deleg_manager.execute_count('clients')
+
+    def get_k_n_short_list(self, k, n):
+        offset = (n - 1) * k
+        columns = ['client_id', 'last_name', 'first_name', 'phone', 'address']
+        results = self.deleg_manager.select_with_limit_and_offset('clients', columns, k, offset)
+        short_clients = [
+            Client(
+                client_id=row[0],
+                last_name=row[1],
+                first_name=row[2],
+                phone=row[3],
+                address=row[4]
+            ).short() for row in results
+        ]
+        return short_clients
+
+    def close_connection(self):
+        self.db.close()
+
 
 
 class DatabaseConnection:
@@ -33,7 +134,6 @@ class DatabaseConnection:
         try:
             cursor = self.connection.cursor()
             cursor.execute(query, params or ())
-
             if fetch:
                 result = cursor.fetchall()
             else:
@@ -44,167 +144,11 @@ class DatabaseConnection:
         except psycopg2.Error as e:
             print(f"Ошибка выполнения запроса: {e}")
             return None
+
     def close(self):
         if self.connection:
             self.connection.close()
             print("Соединение с базой данных закрыто")
-
-
-class ClientRepDB:
-    def __init__(self):
-        self.db = DatabaseConnection()
-
-    def get_by_id(self, client_id):
-        query = "SELECT client_id, last_name, first_name, otch, address, phone FROM clients WHERE client_id = %s"
-        result = self.db.execute_query(query, (client_id,), fetch=True)
-
-        if result and len(result) > 0:
-            row = result[0]
-            return Client(
-                client_id=row[0],
-                last_name=row[1],
-                first_name=row[2],
-                otch=row[3],
-                address=row[4],
-                phone=row[5]
-            )
-        return None
-
-  
-    def get_k_n_short_list(self, k, n):
-        offset = (n - 1) * k
-        query = """
-        SELECT client_id, last_name, first_name, phone, address 
-        FROM clients 
-        ORDER BY client_id 
-        LIMIT %s OFFSET %s
-        """
-        result = self.db.execute_query(query, (k, offset), fetch=True)
-
-        short_clients = []
-        for row in result:
-            short_client = Client(
-                client_id=row[0],
-                last_name=row[1],
-                first_name=row[2],
-                phone=row[3],
-                address=row[4]
-            )
-            short_clients.append(short_client.short())
-
-        return short_clients
-
-
-    def add_client(self, last_name, first_name, phone, address, otch=None):
-        try:
-
-            temp_client = Client()
-            temp_client.set_last_name(last_name)
-            temp_client.set_first_name(first_name)
-            temp_client.set_phone(phone)
-            temp_client.set_address(address)
-            if otch:
-                temp_client.set_otch(otch)
-
-            query = """
-            INSERT INTO clients (last_name, first_name, otch, address, phone) 
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING client_id
-            """
-            params = (last_name, first_name, otch, address, phone)
-
-            result = self.db.execute_query(query, params, fetch=True)
-            if result and len(result) > 0:
-                new_id = result[0][0]
-                print(f"Клиент успешно добавлен с ID: {new_id}")
-                return self.get_by_id(new_id)
-            return None
-
-        except ValueError as e:
-            print(f"Ошибка валидации данных: {e}")
-            return None
-        except Exception as e:
-            print(f"Ошибка при добавлении клиента: {e}")
-            return None
-
-
-    def update_client(self, client_id, last_name=None, first_name=None, phone=None, address=None, otch=None):
-        try:
-            current_client = self.get_by_id(client_id)
-            if not current_client:
-                print(f"Клиент с ID {client_id} не найден")
-                return None
-
-
-            temp_client = Client(
-                client_id=current_client.client_id,
-                last_name=current_client.last_name,
-                first_name=current_client.first_name,
-                otch=current_client.otch,
-                address=current_client.address,
-                phone=current_client.phone
-            )
-
-            if last_name is not None:
-                temp_client.set_last_name(last_name)
-            if first_name is not None:
-                temp_client.set_first_name(first_name)
-            if phone is not None:
-                temp_client.set_phone(phone)
-            if address is not None:
-                temp_client.set_address(address)
-            if otch is not None:
-                temp_client.set_otch(otch)
-
-            new_last_name = last_name if last_name is not None else current_client.last_name
-            new_first_name = first_name if first_name is not None else current_client.first_name
-            new_phone = phone if phone is not None else current_client.phone
-            new_address = address if address is not None else current_client.address
-            new_otch = otch if otch is not None else current_client.otch
-
-            query = """
-            UPDATE clients 
-            SET last_name = %s, first_name = %s, otch = %s, address = %s, phone = %s 
-            WHERE client_id = %s
-            """
-            params = (new_last_name, new_first_name, new_otch, new_address, new_phone, client_id)
-
-            rows_affected = self.db.execute_query(query, params)
-            if rows_affected:
-                print(f"Клиент с ID {client_id} успешно обновлен")
-                return self.get_by_id(client_id)
-            return None
-
-        except ValueError as e:
-            print(f"Ошибка валидации данных: {e}")
-            return None
-        except Exception as e:
-            print(f"Ошибка при обновлении клиента: {e}")
-            return None
-
-
-    def delete_client(self, client_id):
-        client_to_delete = self.get_by_id(client_id)
-        if not client_to_delete:
-            print(f"Клиент с ID {client_id} не найден")
-            return None
-
-        query = "DELETE FROM clients WHERE client_id = %s"
-        rows_affected = self.db.execute_query(query, (client_id,))
-        if rows_affected:
-            print(f"Клиент с ID {client_id} успешно удален")
-            return client_to_delete
-        return None
-
-
-    def get_count(self):
-        query = "SELECT COUNT(*) FROM clients"
-        result = self.db.execute_query(query, fetch=True)
-        return result[0][0] if result else 0
-
-    def close_connection(self):
-        self.db.close()
-
 
 
 
@@ -213,7 +157,6 @@ repo2 = ClientRepDB()
 print(f"Один и тот же объект БД: {repo1.db is repo2.db}")
 
 try:
-
     print(f"\nКоличество клиентов в первом экземпляре: {repo1.get_count()}")
     print(f"Количество клиентов во втором: {repo2.get_count()}")
     print("\nТест на валидацию:")
