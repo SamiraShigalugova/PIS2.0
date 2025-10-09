@@ -1,224 +1,207 @@
-import json
-import yaml
+import psycopg2
 from clients import Client
 
-class ClientRep:
-    def __init__(self, filename):
-        self.filename = filename
+
+class ClientRepDB:
+    def __init__(self, host="localhost", user="postgres", password="", database="clients_db", port="5432"):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.database = database
+        self.port = port
+        self.connection = None
+        self.connect()
+
+    def connect(self):
+        try:
+            self.connection = psycopg2.connect(
+                host=self.host,
+                user=self.user,
+                password=self.password,
+                database=self.database,
+                port=self.port,
+            )
+            print(f"Успешное подключение к базе данных '{self.database}'")
+        except psycopg2.Error as e:
+            print(f"Ошибка подключения к базе данных: {e}")
+
+    def execute_query(self, query, params=None, fetch=False):
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(query, params or ())
+            if fetch:
+                result = cursor.fetchall()
+            else:
+                result = cursor.rowcount
+            self.connection.commit()
+            cursor.close()
+            return result
+        except psycopg2.Error as e:
+            self.connection.rollback()
+            return None
+        except Exception as e:
+            self.connection.rollback()
+            return None
 
     def get_by_id(self, client_id):
-        clients = self.read_all()
-        for client in clients:
-            if client.client_id == client_id:
-                return client
+        query = "SELECT client_id, last_name, first_name, otch, address, phone FROM clients WHERE client_id = %s"
+        result = self.execute_query(query, (client_id,), fetch=True)
+        if result and len(result) > 0:
+            row = result[0]
+            return Client(
+                client_id=row[0],
+                last_name=row[1],
+                first_name=row[2],
+                otch=row[3],
+                address=row[4],
+                phone=row[5],
+            )
         return None
 
     def get_k_n_short_list(self, k, n):
-        clients = self.read_all()
-        start_index = (n - 1) * k
-        end_index = start_index + k
-        if start_index >= len(clients):
-            return []
+        offset = (n - 1) * k
+        query = """
+         SELECT client_id, last_name, first_name, phone, address
+         FROM clients
+         ORDER BY client_id
+         LIMIT %s OFFSET %s
+         """
+        result = self.execute_query(query, (k, offset), fetch=True)
         short_clients = []
-        for client in clients[start_index:end_index]:
-            short_obj = client.short()
-            short_clients.append(short_obj.get_info())
+        for row in result:
+            short_client = Client(
+                client_id=row[0],
+                last_name=row[1],
+                first_name=row[2],
+                phone=row[3],
+                address=row[4],
+            )
+            short_clients.append(short_client.short())
         return short_clients
-
-    def sort_by_field(self, field="last_name", reverse=False):
-        clients = self.read_all()
-        clients.sort(key=lambda client: getattr(client, field) or "", reverse=reverse)
-        return clients
 
     def add_client(self, last_name, first_name, phone, address, otch=None):
         try:
-            clients = self.read_all()
-            if clients:
-                max_id = 0
-                for client in clients:
-                    if client.client_id > max_id:
-                        max_id = client.client_id
-                new_id = max_id + 1
-            else:
-                new_id = 1
-            new_client = Client(
-                client_id=new_id,
+            client = Client(
                 last_name=last_name,
                 first_name=first_name,
-                otch=otch,
-                address=address,
                 phone=phone,
+                address=address,
+                otch=otch
             )
-            clients.append(new_client)
-            if self.write_all(clients):
+            query = """
+            INSERT INTO clients (last_name, first_name, otch, address, phone)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING client_id
+            """
+            result = self.execute_query(query, (last_name, first_name, otch, address, phone), fetch=True)
+            if result:
+                new_id = result[0][0]
                 print(f"Клиент успешно добавлен с ID: {new_id}")
-                return new_client
-            else:
-                print("Ошибка при сохранении данных")
-                return None
+                return Client(
+                    client_id=new_id,
+                    last_name=last_name,
+                    first_name=first_name,
+                    phone=phone,
+                    address=address,
+                    otch=otch
+                )
+            return None
+        except ValueError as e:
+            print(f"Ошибка валидации: {e}")
+            return None
         except Exception as e:
-            print(f"Ошибка при добавлении клиента: {e}")
+            print(f"Ошибка при добавлении: {e}")
             return None
 
     def update_client(self, client_id, last_name=None, first_name=None, phone=None, address=None, otch=None):
-        clients = self.read_all()
-        for i, client in enumerate(clients):
-            if client.client_id == client_id:
-                new_last_name = last_name if last_name is not None else client.last_name
-                new_first_name = first_name if first_name is not None else client.first_name
-                new_phone = phone if phone is not None else client.phone
-                new_address = address if address is not None else client.address
-                new_otch = otch if otch is not None else client.otch
-                new_client = Client(
-                    client_id=client_id,
-                    last_name=new_last_name,
-                    first_name=new_first_name,
-                    phone=new_phone,
-                    address=new_address,
-                    otch=new_otch,
-                )
-                clients[i] = new_client
-                self.write_all(clients)
-                return new_client
-        return None
+        try:
+            current_client = self.get_by_id(client_id)
+            if not current_client:
+                print(f"Клиент с ID {client_id} не найден")
+                return None
+            updated_client = Client(
+                client_id=client_id,
+                last_name=last_name if last_name is not None else current_client.last_name,
+                first_name=first_name if first_name is not None else current_client.first_name,
+                phone=phone if phone is not None else current_client.phone,
+                address=address if address is not None else current_client.address,
+                otch=otch if otch is not None else current_client.otch,
+            )
+            query = """
+            UPDATE clients 
+            SET last_name = %s, first_name = %s, otch = %s, address = %s, phone = %s
+            WHERE client_id = %s
+            """
+            params = (
+                updated_client.last_name,
+                updated_client.first_name,
+                updated_client.otch,
+                updated_client.address,
+                updated_client.phone,
+                client_id
+            )
+            rows_affected = self.execute_query(query, params)
+            if rows_affected:
+                print(f"Клиент с ID {client_id} успешно обновлен")
+                return updated_client
+            return None
+        except ValueError as e:
+            print(f"Ошибка валидации данных: {e}")
+            return None
+        except Exception as e:
+            print(f"Ошибка при обновлении клиента: {e}")
+            return None
 
     def delete_client(self, client_id):
-        clients = self.read_all()
-        for i, client in enumerate(clients):
-            if client.client_id == client_id:
-                deleted_client = clients.pop(i)
-                self.write_all(clients)
-                return deleted_client
+        client_to_delete = self.get_by_id(client_id)
+        if not client_to_delete:
+            print(f"Клиент с ID {client_id} не найден")
+            return None
+        query = "DELETE FROM clients WHERE client_id = %s"
+        rows_affected = self.execute_query(query, (client_id,))
+        if rows_affected:
+            print(f"Клиент с ID {client_id} успешно удален")
+            return client_to_delete
         return None
 
     def get_count(self):
-        clients = self.read_all()
-        return len(clients)
+        query = "SELECT COUNT(*) FROM clients"
+        result = self.execute_query(query, fetch=True)
+        return result[0][0] if result else 0
 
-
-class ClientRepJson(ClientRep):
-    def __init__(self, filename="clients.json"):
-        super().__init__(filename)
-
-    def read_all(self):
-        try:
-            with open(self.filename, "r", encoding="utf-8") as file:
-                data = json.load(file)
-                clients = [Client(data=json.dumps(item)) for item in data]
-                return clients
-        except FileNotFoundError:
-            print(f"Файл {self.filename} не найден")
-            return []
-        except json.JSONDecodeError:
-            print(f"Ошибка чтения JSON из файла {self.filename}")
-            return []
-
-    def write_all(self, clients):
-        try:
-            data = []
-            for client in clients:
-                client_data = {
-                    "client_id": client.client_id,
-                    "last_name": client.last_name,
-                    "first_name": client.first_name,
-                    "otch": client.otch,
-                    "address": client.address,
-                    "phone": client.phone,
-                }
-                data.append(client_data)
-            with open(self.filename, "w", encoding="utf-8") as file:
-                json.dump(data, file, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            print(f"Ошибка при записи в файл: {e}")
-            return False
-
-
-class ClientRepYaml(ClientRep):
-    def __init__(self, filename="clients.yaml"):
-        super().__init__(filename)
-
-    def read_all(self):
-        try:
-            with open(self.filename, "r", encoding="utf-8") as file:
-                data = yaml.safe_load(file)
-                if data is None:
-                    return []
-                clients = []
-                for item in data:
-                    client = Client(
-                        client_id=item.get("client_id"),
-                        last_name=item.get("last_name"),
-                        first_name=item.get("first_name"),
-                        otch=item.get("otch"),
-                        address=item.get("address"),
-                        phone=item.get("phone"),
-                    )
-                    clients.append(client)
-                return clients
-        except FileNotFoundError:
-            print(f"Файл {self.filename} не найден")
-            return []
-        except yaml.YAMLError:
-            print(f"Ошибка чтения YAML из файла {self.filename}")
-            return []
-        except Exception as e:
-            print(f"Ошибка при создании клиентов: {e}")
-            return []
-
-    def write_all(self, clients):
-        try:
-            data = []
-            for client in clients:
-                client_data = {
-                    "client_id": client.client_id,
-                    "last_name": client.last_name,
-                    "first_name": client.first_name,
-                    "otch": client.otch,
-                    "address": client.address,
-                    "phone": client.phone,
-                }
-                data.append(client_data)
-            with open(self.filename, "w", encoding="utf-8") as file:
-                yaml.dump(data, file, allow_unicode=True, default_flow_style=False)
-            return True
-        except Exception as e:
-            print(f"Ошибка при записи в файл: {e}")
-            return False
-
-
-repo_json = ClientRepJson(".venv/clients.json")
-# print("\nДобавление нового клиента в файл JSON:")
-# new_client = repo_json.add_client(
-#     last_name="Павлова",
-#     first_name="Анна",
-#     otch="Александровна",
-#     phone="+79161115556",
-#     address="г. Псков",
-# )
-count_json = repo_json.get_count()
-print(f"Количество клиентов: {count_json}")
-repo_yaml = ClientRepYaml(".venv/clients.yaml")
-page_json = repo_json.get_k_n_short_list(2, 3)
-for i, client_short in enumerate(page_json):
-    print(f"{i}. {client_short}")
-
-
-print("\nДобавление нового клиента в файл YAML:")
-# new_client = repo_yaml.add_client(
-#     last_name="Сомкина",
-#     first_name="Марина",
-#     otch="Исмаиловна",
-#     phone="+791622224785",
-#     address="г. Москва",
-# )
-count_yaml = repo_yaml.get_count()
-sort_yaml = repo_yaml.sort_by_field()
-print(f"Количество клиентов: {count_yaml}")
-page_yaml = repo_yaml.get_k_n_short_list(5, 1)
-for i, client_short in enumerate(page_yaml, 1):
-    print(f"{i}. {client_short}")
-print("-*******-")
-sorted_clients = repo_yaml.sort_by_field("last_name", reverse=False)
-for i, client in enumerate(sorted_clients, 1):
-    print(f"{i}. {client.short().get_info()}")
+    def close(self):
+        if self.connection:
+            self.connection.close()
+            print("Соединение с базой данных закрыто")
+try:
+    repo_db = ClientRepDB(
+        host="localhost",
+        user="postgres",
+        password="123",
+        database="clients_database",
+        port="5432",
+    )
+    print("\nПоиск клиента по ID:")
+    client = repo_db.get_by_id(82)
+    if client:
+        print(f"Найден клиент: {client.get_long_info()}")
+    print("\nВыборка клиентов:")
+    short_clients = repo_db.get_k_n_short_list(k=1, n=1)
+    for i, short_client in enumerate(short_clients, 1):
+        print(f"{i}. {short_client.get_info()}")
+    # print("\nДобавление нового клиента:")
+    # new_client = repo_db.add_client(
+    #     last_name="Иванов",
+    #     first_name="Петр",
+    #     otch="Васильевич",
+    #     phone="+79167745899",
+    #     address="г. Владивосток, ул. Новая 10",
+    # )
+    print("\nОбновление клиента:")
+    updated_client = repo_db.update_client(client_id=83, phone="+77584669944")
+    print("\nУдаление клиента:")
+    deleted_client = repo_db.delete_client(83)
+    count = repo_db.get_count()
+    print(f"Количество клиентов в базе: {count}")
+finally:
+    repo_db.close()
