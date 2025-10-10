@@ -1,103 +1,220 @@
 import psycopg2
 from clients import Client
 
+class ClientRep:
+    def __init__(self, filename):
+        self.filename = filename
+
+    def read_all(self):
+        raise NotImplementedError
+
+    def write_all(self, clients):
+        raise NotImplementedError
+
+    def get_by_id(self, client_id):
+        clients = self.read_all()
+        for client in clients:
+            if client.client_id == client_id:
+                return client
+        return None
+
+    def get_k_n_short_list(self, k, n):
+        clients = self.read_all()
+        start_index = (n - 1) * k
+        end_index = start_index + k
+        return [client.short() for client in clients[start_index:end_index]]
+
+    def add_client(self, last_name, first_name, phone, address, otch=None):
+        clients = self.read_all()
+        new_id = 0
+        for client in clients:
+            if client.client_id > new_id:
+                new_id = client.client_id
+        new_id += 1
+        try:
+            new_client = Client(
+                client_id=new_id,
+                last_name=last_name,
+                first_name=first_name,
+                phone=phone,
+                address=address,
+                otch=otch
+            )
+            clients.append(new_client)
+            return new_client if self.write_all(clients) else None
+        except ValueError:
+            return None
+
+    def get_count(self):
+        return len(self.read_all())
+
+
+class ClientRepJson(ClientRep):
+    def read_all(self):
+        import json
+        try:
+            with open(self.filename, "r", encoding="utf-8") as file:
+                data = json.load(file)
+                clients = []
+                for item in data:
+                    client = Client(
+                        client_id=item.get("client_id"),
+                        last_name=item.get("last_name"),
+                        first_name=item.get("first_name"),
+                        otch=item.get("otch"),
+                        address=item.get("address"),
+                        phone=item.get("phone")
+                    )
+                    clients.append(client)
+                return clients
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+
+    def write_all(self, clients):
+        import json
+        try:
+            data = []
+            for client in clients:
+                client_data = {
+                    "client_id": client.client_id,
+                    "last_name": client.last_name,
+                    "first_name": client.first_name,
+                    "otch": client.otch,
+                    "address": client.address,
+                    "phone": client.phone,
+                }
+                data.append(client_data)
+            with open(self.filename, "w", encoding="utf-8") as file:
+                json.dump(data, file, ensure_ascii=False, indent=2)
+            return True
+        except Exception:
+            return False
+
+
+class ClientRepYaml(ClientRep):
+    def read_all(self):
+        import yaml
+        try:
+            with open(self.filename, "r", encoding="utf-8") as file:
+                data = yaml.safe_load(file)
+                if data is None:
+                    return []
+                clients = []
+                for item in data:
+                    client = Client(
+                        client_id=item.get("client_id"),
+                        last_name=item.get("last_name"),
+                        first_name=item.get("first_name"),
+                        otch=item.get("otch"),
+                        address=item.get("address"),
+                        phone=item.get("phone"),
+                    )
+                    clients.append(client)
+                return clients
+        except FileNotFoundError:
+            return []
+
+    def write_all(self, clients):
+        import yaml
+        try:
+            data = []
+            for client in clients:
+                client_data = {
+                    "client_id": client.client_id,
+                    "last_name": client.last_name,
+                    "first_name": client.first_name,
+                    "otch": client.otch,
+                    "address": client.address,
+                    "phone": client.phone,
+                }
+                data.append(client_data)
+            with open(self.filename, "w", encoding="utf-8") as file:
+                yaml.dump(data, file, allow_unicode=True, default_flow_style=False)
+            return True
+        except Exception:
+            return False
+
+
 class DatabaseSingleton:
     _instance = None
 
     def __new__(cls, host="localhost", user="postgres", password="123", database="clients_database", port="5432"):
         if cls._instance is None:
-            cls._instance = super(DatabaseSingleton, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._initialize(host, user, password, database, port)
         return cls._instance
 
     def _initialize(self, host, user, password, database, port):
-        self.host = host
-        self.user = user
-        self.password = password
-        self.database = database
-        self.port = port
-        self.connection = None
-        self._connect()
-
-    def _connect(self):
-        try:
-            self.connection = psycopg2.connect(
-                host=self.host,
-                user=self.user,
-                password=self.password,
-                database=self.database,
-                port=self.port,
-            )
-            print(f"Успешное подключение к базе данных '{self.database}'")
-        except psycopg2.Error as e:
-            print(f"Ошибка подключения к базе данных: {e}")
+        self.connection = psycopg2.connect(
+            host=host, user=user, password=password, database=database, port=port
+        )
 
     def execute_query(self, query, params=None, fetch=False):
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute(query, params or ())
-            if fetch:
-                result = cursor.fetchall()
-            else:
-                result = cursor.rowcount
-            self.connection.commit()
-            cursor.close()
-            return result
-        except psycopg2.Error as e:
-            print(f"Ошибка выполнения запроса: {e}")
-            self.connection.rollback()
-            return None
-
-    def close(self):
-        if self.connection:
-            self.connection.close()
-            print("Соединение с базой данных закрыто")
-
-
-class DatabaseDelegate:
-    def __init__(self, db_connector):
-        self.db = db_connector
-
-    def find_by_id(self, table, id_value):
-        sql = f"SELECT * FROM {table} WHERE client_id = %s"
-        return self.db.execute_query(sql, [id_value], fetch=True)
-
-    def get_all_paginated(self, table, limit, offset):
-        sql = f"SELECT * FROM {table} ORDER BY client_id LIMIT %s OFFSET %s"
-        return self.db.execute_query(sql, [limit, offset], fetch=True)
-
-    def insert(self, table, data):
-        columns = ", ".join(data.keys())
-        znach = ", ".join(["%s"] * len(data))
-        sql = f"INSERT INTO {table} ({columns}) VALUES ({znach})"
-        return self.db.execute_query(sql, list(data.values()))
-
-    def update(self, table, updates, id_value):
-        set_znach = ", ".join([f"{key} = %s" for key in updates.keys()])
-        sql = f"UPDATE {table} SET {set_znach} WHERE client_id = %s"
-        params = list(updates.values()) + [id_value]
-        return self.db.execute_query(sql, params)
-
-    def delete(self, table, id_value):
-        sql = f"DELETE FROM {table} WHERE client_id = %s"
-        return self.db.execute_query(sql, [id_value])
-
-    def count(self, table):
-        sql = f"SELECT COUNT(*) FROM {table}"
-        result = self.db.execute_query(sql, fetch=True)
-        return result[0][0] if result else 0
+        cursor = self.connection.cursor()
+        cursor.execute(query, params or ())
+        result = cursor.fetchall() if fetch else cursor.rowcount
+        self.connection.commit()
+        cursor.close()
+        return result
 
 
 class ClientRepDB:
     def __init__(self):
         self.db = DatabaseSingleton()
-        self.delegate = DatabaseDelegate(self.db)
 
-    def get_by_id(self, client_id):
-        result = self.delegate.find_by_id("clients", client_id)
-        if result:
-            row = result[0]
-            return Client(
+    def insert_client(self, last_name, first_name, phone, address, otch=None):
+        data = {
+            "last_name": last_name,
+            "first_name": first_name,
+            "phone": phone,
+            "address": address,
+            "otch": otch
+        }
+        columns = ", ".join(data.keys())
+        znach = ", ".join(["%s"] * len(data))
+        sql = f"INSERT INTO clients ({columns}) VALUES ({znach})"
+        return self.db.execute_query(sql, list(data.values()))
+
+    def update_client_fields(self, client_id, updates):
+        if not updates:
+            return None
+        set_znach = ", ".join([f"{key} = %s" for key in updates.keys()])
+        sql = f"UPDATE clients SET {set_znach} WHERE client_id = %s"
+        params = list(updates.values()) + [client_id]
+        return self.db.execute_query(sql, params)
+
+    def delete_client(self, client_id):
+        sql = "DELETE FROM clients WHERE client_id = %s"
+        return self.db.execute_query(sql, [client_id])
+
+    def count_clients(self):
+        sql = "SELECT COUNT(*) FROM clients"
+        result = self.db.execute_query(sql, fetch=True)
+        return result[0][0] if result else 0
+
+    def get_client_by_id(self, client_id):
+        sql = "SELECT * FROM clients WHERE client_id = %s"
+        return self.db.execute_query(sql, [client_id], fetch=True)
+
+    def get_clients_page(self, limit, offset):
+        sql = "SELECT * FROM clients ORDER BY client_id LIMIT %s OFFSET %s"
+        return self.db.execute_query(sql, [limit, offset], fetch=True)
+
+    def get_all_clients_rows(self):
+        sql = "SELECT * FROM clients ORDER BY client_id"
+        return self.db.execute_query(sql, fetch=True)
+
+
+class ClientRepDBAdapter(ClientRep):
+    def __init__(self):
+        super().__init__("database")
+        self.adaptee = ClientRepDB()
+
+    def read_all(self):
+        results = self.adaptee.get_all_clients_rows()
+        clients = []
+        for row in results:
+            client = Client(
                 client_id=row[0],
                 last_name=row[1],
                 first_name=row[2],
@@ -105,109 +222,47 @@ class ClientRepDB:
                 address=row[4],
                 phone=row[5]
             )
-        return None
+            clients.append(client)
+        return clients
 
-    def get_k_n_short(self, k, n):
-        offset = (n - 1) * k
-        results = self.delegate.get_all_paginated("clients", k, offset)
-        short_clients = []
-        for row in results:
-            client = Client(
-                client_id=row[0],
-                last_name=row[1],
-                first_name=row[2],
-                phone=row[3],
-                address=row[4],
-            )
-            short_clients.append(client.short())
-        return short_clients
+    def write_all(self, clients):
+        try:
+            self.adaptee.execute_sql("DELETE FROM clients")
+            for client in clients:
+                self.adaptee.insert_client(
+                    client.last_name, client.first_name,
+                    client.phone, client.address, client.otch
+                )
+            return True
+        except Exception:
+            return False
 
     def add_client(self, last_name, first_name, phone, address, otch=None):
         try:
-            client = Client(
-                last_name=last_name,
-                first_name=first_name,
-                phone=phone,
-                address=address,
-                otch=otch
-            )
-            data = {
-                "last_name": last_name,
-                "first_name": first_name,
-                "phone": phone,
-                "address": address,
-                "otch": otch
-            }
-            self.delegate.insert("clients", data)
-            print("Клиент добавлен!")
-        except ValueError as e:
-            print(f"Ошибка добавления клиента: {e}")
-
-    def update_client(self, client_id, last_name=None, first_name=None, phone=None, address=None, otch=None):
-        try:
-            current_client = self.get_by_id(client_id)
-            if not current_client:
-                print(f"Клиент с ID {client_id} не найден")
-                return None
-            updated_client = Client(
-                client_id=client_id,
-                last_name=last_name if last_name is not None else current_client.last_name,
-                first_name=first_name if first_name is not None else current_client.first_name,
-                phone=phone if phone is not None else current_client.phone,
-                address=address if address is not None else current_client.address,
-                otch=otch if otch is not None else current_client.otch,
-            )
-            updates = {
-                "last_name": updated_client.last_name,
-                "first_name": updated_client.first_name,
-                "otch": updated_client.otch,
-                "address": updated_client.address,
-                "phone": updated_client.phone
-            }
-            rows_affected = self.delegate.update("clients", updates, client_id)
-            if rows_affected:
-                print(f"Клиент с ID {client_id} успешно обновлен")
-                return updated_client
+            client = Client(last_name, first_name, phone, address, otch)
+            result = self.adaptee.insert_client(last_name, first_name, phone, address, otch)
+            return client if result else None
+        except ValueError:
             return None
 
-        except ValueError as e:
-            print(f"Ошибка валидации данных: {e}")
-            return None
-        except Exception as e:
-            print(f"Ошибка при обновлении клиента: {e}")
-            return None
 
-    def delete_client(self, client_id):
-        self.delegate.delete("clients", client_id)
-        print(f"Клиент {client_id} удален!")
+repositories = {
+    "JSON": ClientRepJson("clients.json"),
+    "YAML": ClientRepYaml("clients.yaml"),
+    "БД": ClientRepDBAdapter()
+}
 
-    def get_count(self):
-        return self.delegate.count("clients")
+for name, repo in repositories.items():
+    print(f"\n{name}:")
+    print(f"Клиентов: {repo.get_count()}")
 
+    # repo.add_client(
+    #     last_name="Иванов",
+    #     first_name="Иван",
+    #     phone="+79169998844",
+    #     address="г. Москва"
+    # )
 
-
-
-repo1 = ClientRepDB()
-repo2 = ClientRepDB()
-print(f"Один и тот же объект БД: {repo1.db is repo2.db}")
-print(f"\nКоличество клиентов в первом экземпляре: {repo1.get_count()}")
-print(f"Количество клиентов во втором: {repo2.get_count()}")
-print("\nВыборка клиентов:")
-short_clients = repo1.get_k_n_short(k=4, n=1)
-for i, short_client in enumerate(short_clients, 1):
-    print(f"{i}. {short_client.get_info()}")
-
-# new_client = repo1.add_client(
-#     last_name="Смирнов",
-#     first_name="Алексей",
-#     otch="Владимирович",
-#     phone="+79165554433",
-#     address="г. Москва, ул. Ленина 15"
-# )
-# if new_client:
-#     client_id_to_update = 82
-#     updated_client = repo1.update_client(
-#         client_id=client_id_to_update,
-#         last_name="Иванов",
-#         phone="+79167778899"
-#     )
+    clients = repo.get_k_n_short_list(5, 1)
+    for i, client in enumerate(clients, 1):
+        print(f"{i}. {client.get_info()}")
